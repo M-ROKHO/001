@@ -1,0 +1,74 @@
+# =========================
+# Node / Express
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Build outputs
+# =========================
+dist/
+build/
+out/
+coverage/
+
+# =========================
+# Next.js (if used)
+# =========================
+.next/
+.vercel/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# PostgreSQL
+# =========================
+*.sql
+*.dump
+*.backup
+
+# =========================
+# Prisma / Sequelize
+# =========================
+prisma/migrations/*
+!prisma/migrations/.gitkeep
+
+# =========================
+# Docker
+# =========================
+docker-compose.override.yml
+
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# =========================
+# Testing
+# =========================
+.nyc_output/
+junit.xml
+
+# =========================
+# Misc
+# =========================
+.cache/
+temp/
+tmp/
