@@ -117,8 +117,18 @@ export const loadRoleForTenant = async (req, res, next) => {
             return next(new AppError('You do not have access to this tenant', 403));
         }
 
+        // Check if user is Principal (tenant leader)
+        const isPrincipal = roles.includes('principal');
+        req.isPrincipal = isPrincipal;
+
         // Load permissions for this tenant
-        const permissions = await loadUserPermissions(req.user.userId, req.tenantId);
+        // Principal gets all permissions as tenant leader
+        let permissions;
+        if (isPrincipal) {
+            permissions = ['*']; // All permissions within tenant
+        } else {
+            permissions = await loadUserPermissions(req.user.userId, req.tenantId);
+        }
 
         // Attach to request
         req.user.roles = roles;
@@ -150,8 +160,8 @@ export const requirePermission = (requiredPermissions, options = {}) => {
     const { all = false } = options;
 
     return (req, res, next) => {
-        // Platform owner has all permissions
-        if (req.isPlatformOwner || req.user?.permissions?.includes('*')) {
+        // Platform owner and Principal (tenant leader) have all permissions
+        if (req.isPlatformOwner || req.isPrincipal || req.user?.permissions?.includes('*')) {
             return next();
         }
 
@@ -189,7 +199,8 @@ export const requireRole = (requiredRoles) => {
     const roles = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
 
     return (req, res, next) => {
-        if (req.isPlatformOwner) {
+        // Platform owner and Principal bypass role checks
+        if (req.isPlatformOwner || req.isPrincipal) {
             return next();
         }
 
@@ -234,7 +245,7 @@ export const platformOwnerOnly = (req, res, next) => {
  * Use in controllers for conditional logic
  */
 export const hasPermission = (req, permission) => {
-    if (req.isPlatformOwner || req.user?.permissions?.includes('*')) {
+    if (req.isPlatformOwner || req.isPrincipal || req.user?.permissions?.includes('*')) {
         return true;
     }
     return req.user?.permissions?.includes(permission) || false;
@@ -244,7 +255,8 @@ export const hasPermission = (req, permission) => {
  * Check if current user has role
  */
 export const hasRole = (req, role) => {
-    if (req.isPlatformOwner) {
+    // Principal can act as any role within their tenant
+    if (req.isPlatformOwner || req.isPrincipal) {
         return true;
     }
     return req.user?.roles?.includes(role) || false;
