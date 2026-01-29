@@ -1,9 +1,11 @@
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import db, { pool, testConnection } from './src/config/database.js';
 import errorHandler from './src/middleware/errorHandler.js';
 import requestLogger from './src/middleware/requestLogger.js';
 import healthRouter from './src/routes/health.js';
+import authRouter from './src/routes/auth.js';
 import { NotFoundError } from './src/utils/AppError.js';
 
 dotenv.config();
@@ -24,6 +26,7 @@ app.use(requestLogger({
 // Body parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
 
 // Security headers
 app.use((req, res, next) => {
@@ -50,12 +53,11 @@ app.get('/', (req, res) => {
     });
 });
 
-// API routes will be mounted here
-// app.use('/api/v1/auth', authRouter);
+// API routes
+app.use('/api/v1/auth', authRouter);
 // app.use('/api/v1/tenants', tenantsRouter);
 // app.use('/api/v1/students', studentsRouter);
 // app.use('/api/v1/classes', classesRouter);
-// etc.
 
 // =============================================================================
 // ERROR HANDLING
