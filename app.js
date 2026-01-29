@@ -6,6 +6,9 @@ import errorHandler from './src/middleware/errorHandler.js';
 import requestLogger from './src/middleware/requestLogger.js';
 import healthRouter from './src/routes/health.js';
 import authRouter from './src/routes/auth.js';
+import usersRouter from './src/routes/users.js';
+import academicRouter from './src/routes/academic.js';
+import studentsRouter from './src/routes/students.js';
 import { NotFoundError } from './src/utils/AppError.js';
 
 dotenv.config();
@@ -55,9 +58,9 @@ app.get('/', (req, res) => {
 
 // API routes
 app.use('/api/v1/auth', authRouter);
-// app.use('/api/v1/tenants', tenantsRouter);
-// app.use('/api/v1/students', studentsRouter);
-// app.use('/api/v1/classes', classesRouter);
+app.use('/api/v1/users', usersRouter);
+app.use('/api/v1/academic', academicRouter);
+app.use('/api/v1/students', studentsRouter);
 
 // =============================================================================
 // ERROR HANDLING
