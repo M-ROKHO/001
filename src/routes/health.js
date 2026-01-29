@@ -1,4 +1,4 @@
-import pool, { testConnection } from '../config/database.js';
+import db, { pool, testConnection } from '../config/database.js';
 
 /**
  * Health check response structure

@@ -1,6 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import pool, { testConnection } from './src/config/database.js';
+import db, { pool, testConnection } from './src/config/database.js';
 import errorHandler from './src/middleware/errorHandler.js';
 import requestLogger from './src/middleware/requestLogger.js';
 import healthRouter from './src/routes/health.js';
