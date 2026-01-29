@@ -9,6 +9,8 @@
   "scripts": {
     "start": "node app.js",
     "dev": "node --watch app.js",
+    "db:migrate": "node src/database/migrate.js up",
+    "db:rollback": "node src/database/migrate.js down",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

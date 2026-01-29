@@ -2,37 +2,64 @@ import express from 'express';
 import dotenv from 'dotenv';
 import pool, { testConnection } from './src/config/database.js';
 import errorHandler from './src/middleware/errorHandler.js';
-import AppError, { NotFoundError } from './src/utils/AppError.js';
-import catchAsync from './src/utils/catchAsync.js';
+import requestLogger from './src/middleware/requestLogger.js';
+import healthRouter from './src/routes/health.js';
+import { NotFoundError } from './src/utils/AppError.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// =============================================================================
+// MIDDLEWARE
+// =============================================================================
 
-// Example route using catchAsync
-app.get('/', catchAsync(async (req, res) => {
-    res.json({
-        status: 'success',
-        message: 'API is running'
-    });
+// Request logging (before routes)
+app.use(requestLogger({
+    logBody: process.env.NODE_ENV === 'development',
+    skip: ['/favicon.ico']
 }));
 
-// Example route demonstrating error handling
-app.get('/health', catchAsync(async (req, res) => {
-    const isConnected = await testConnection();
-    if (!isConnected) {
-        throw new AppError('Database connection failed', 503);
-    }
+// Body parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Security headers
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    next();
+});
+
+// =============================================================================
+// ROUTES
+// =============================================================================
+
+// Health check endpoints
+app.use('/health', healthRouter);
+
+// Root endpoint
+app.get('/', (req, res) => {
     res.json({
         status: 'success',
-        database: 'connected'
+        message: 'EduSaaS API is running',
+        version: '1.0.0',
+        docs: '/api/docs'
     });
-}));
+});
+
+// API routes will be mounted here
+// app.use('/api/v1/auth', authRouter);
+// app.use('/api/v1/tenants', tenantsRouter);
+// app.use('/api/v1/students', studentsRouter);
+// app.use('/api/v1/classes', classesRouter);
+// etc.
+
+// =============================================================================
+// ERROR HANDLING
+// =============================================================================
 
 // Handle undefined routes (404)
 app.all('*', (req, res, next) => {
@@ -42,10 +69,15 @@ app.all('*', (req, res, next) => {
 // Global error handling middleware (must be last)
 app.use(errorHandler);
 
+// =============================================================================
+// PROCESS HANDLERS
+// =============================================================================
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
     console.error('UNHANDLED REJECTION! Shutting down...');
     console.error(err.name, err.message);
+    console.error(err.stack);
     process.exit(1);
 });
 
@@ -53,26 +85,43 @@ process.on('unhandledRejection', (err) => {
 process.on('uncaughtException', (err) => {
     console.error('UNCAUGHT EXCEPTION! Shutting down...');
     console.error(err.name, err.message);
+    console.error(err.stack);
     process.exit(1);
 });
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-    console.log('SIGTERM received. Shutting down gracefully...');
-    await pool.end();
-    process.exit(0);
-});
+const gracefulShutdown = async (signal) => {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
 
-process.on('SIGINT', async () => {
-    console.log('SIGINT received. Shutting down gracefully...');
-    await pool.end();
-    process.exit(0);
-});
+    // Close database pool
+    try {
+        await pool.end();
+        console.log('✅ Database connections closed');
+    } catch (err) {
+        console.error('Error closing database:', err.message);
+    }
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    testConnection();
+    process.exit(0);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// =============================================================================
+// START SERVER
+// =============================================================================
+
+app.listen(PORT, async () => {
+    console.log(`\n🚀 Server running on port ${PORT}`);
+    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+
+    // Test database connection on startup
+    const dbConnected = await testConnection();
+    if (dbConnected) {
+        console.log('✅ Database connection established\n');
+    } else {
+        console.error('❌ Database connection failed\n');
+    }
 });
 
 export default app;
