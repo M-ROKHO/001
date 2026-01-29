@@ -91,6 +91,72 @@ const authService = {
     },
 
     /**
+     * Login as platform owner
+     * Separate from tenant user login
+     */
+    platformOwnerLogin: async (email, password) => {
+        // Find platform user by email
+        const result = await db.query(
+            `SELECT id, email, password_hash, first_name, last_name, role, status, token_version
+             FROM platform_users 
+             WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL`,
+            [email]
+        );
+
+        const user = result.rows[0];
+
+        if (!user) {
+            throw new AppError('Invalid email or password', 401);
+        }
+
+        if (user.status !== 'active') {
+            throw new AppError('Platform account is not active', 403);
+        }
+
+        // Verify password
+        const isValidPassword = await comparePassword(password, user.password_hash);
+        if (!isValidPassword) {
+            throw new AppError('Invalid email or password', 401);
+        }
+
+        // Update last login
+        await db.query(
+            'UPDATE platform_users SET last_login_at = NOW() WHERE id = $1',
+            [user.id]
+        );
+
+        // Generate tokens with isPlatformOwner flag
+        const { generateAccessToken, generateRefreshToken } = await import('../utils/jwt.js');
+
+        const accessToken = generateAccessToken({
+            userId: user.id,
+            email: user.email,
+            isPlatformOwner: true,
+            type: 'access',
+        });
+
+        const refreshToken = generateRefreshToken({
+            userId: user.id,
+            tokenVersion: user.token_version || 0,
+            isPlatformOwner: true,
+        });
+
+        return {
+            user: {
+                id: user.id,
+                email: user.email,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                role: user.role,
+                isPlatformOwner: true,
+            },
+            accessToken,
+            refreshToken,
+            expiresIn: '15m',
+        };
+    },
+
+    /**
      * Refresh access token using refresh token
      */
     refreshTokens: async (refreshToken) => {

@@ -5,11 +5,13 @@ import AppError from '../utils/AppError.js';
 // =============================================================================
 // AUTHENTICATION MIDDLEWARE
 // Verifies JWT access token and attaches user to request
+// Supports both tenant users and platform owners
 // =============================================================================
 
 /**
  * Authenticate using Bearer token
  * Attaches decoded user info to req.user
+ * Detects platform owner from token
  */
 export const authenticate = async (req, res, next) => {
     try {
@@ -29,12 +31,24 @@ export const authenticate = async (req, res, next) => {
         // Verify token
         const decoded = verifyAccessToken(token);
 
-        // Attach user info to request
-        req.user = {
-            userId: decoded.userId,
-            tenantId: decoded.tenantId,
-            email: decoded.email,
-        };
+        // Check if platform owner
+        if (decoded.isPlatformOwner) {
+            req.user = {
+                userId: decoded.userId,
+                email: decoded.email,
+                isPlatformOwner: true,
+            };
+            req.isPlatformOwner = true;
+        } else {
+            // Regular tenant user
+            req.user = {
+                userId: decoded.userId,
+                tenantId: decoded.tenantId,
+                email: decoded.email,
+                isPlatformOwner: false,
+            };
+            req.isPlatformOwner = false;
+        }
 
         next();
     } catch (error) {
@@ -63,11 +77,21 @@ export const optionalAuth = async (req, res, next) => {
         const token = authHeader.split(' ')[1];
         const decoded = verifyAccessToken(token);
 
-        req.user = {
-            userId: decoded.userId,
-            tenantId: decoded.tenantId,
-            email: decoded.email,
-        };
+        if (decoded.isPlatformOwner) {
+            req.user = {
+                userId: decoded.userId,
+                email: decoded.email,
+                isPlatformOwner: true,
+            };
+            req.isPlatformOwner = true;
+        } else {
+            req.user = {
+                userId: decoded.userId,
+                tenantId: decoded.tenantId,
+                email: decoded.email,
+                isPlatformOwner: false,
+            };
+        }
     } catch (error) {
         // Ignore errors - user just won't be attached
     }
@@ -77,7 +101,7 @@ export const optionalAuth = async (req, res, next) => {
 
 /**
  * Load full user from database
- * Use after authenticate when you need full user data
+ * Works for both tenant users and platform owners
  */
 export const loadFullUser = async (req, res, next) => {
     if (!req.user?.userId) {
@@ -85,27 +109,50 @@ export const loadFullUser = async (req, res, next) => {
     }
 
     try {
-        const result = await db.query(
-            `SELECT u.id, u.tenant_id, u.email, u.first_name, u.last_name, 
-                    u.status, u.avatar_url, array_agg(ur.role) as roles
-             FROM users u
-             LEFT JOIN user_roles ur ON ur.user_id = u.id
-             WHERE u.id = $1 AND u.deleted_at IS NULL
-             GROUP BY u.id`,
-            [req.user.userId]
-        );
+        if (req.isPlatformOwner) {
+            // Load platform owner data
+            const result = await db.query(
+                `SELECT id, email, first_name, last_name, role, status, avatar_url
+                 FROM platform_users 
+                 WHERE id = $1 AND deleted_at IS NULL`,
+                [req.user.userId]
+            );
 
-        if (result.rows.length > 0) {
-            const user = result.rows[0];
-            req.user = {
-                ...req.user,
-                id: user.id,
-                firstName: user.first_name,
-                lastName: user.last_name,
-                status: user.status,
-                avatarUrl: user.avatar_url,
-                roles: user.roles?.filter(r => r) || [],
-            };
+            if (result.rows.length > 0) {
+                const user = result.rows[0];
+                req.user = {
+                    ...req.user,
+                    id: user.id,
+                    firstName: user.first_name,
+                    lastName: user.last_name,
+                    role: user.role,
+                    status: user.status,
+                    avatarUrl: user.avatar_url,
+                    roles: ['platform_owner'],
+                };
+            }
+        } else {
+            // Load tenant user data (roles loaded per-tenant in authorize middleware)
+            const result = await db.query(
+                `SELECT u.id, u.tenant_id, u.email, u.first_name, u.last_name, 
+                        u.status, u.avatar_url
+                 FROM users u
+                 WHERE u.id = $1 AND u.deleted_at IS NULL`,
+                [req.user.userId]
+            );
+
+            if (result.rows.length > 0) {
+                const user = result.rows[0];
+                req.user = {
+                    ...req.user,
+                    id: user.id,
+                    firstName: user.first_name,
+                    lastName: user.last_name,
+                    status: user.status,
+                    avatarUrl: user.avatar_url,
+                    // roles loaded separately by loadRoleForTenant
+                };
+            }
         }
 
         next();

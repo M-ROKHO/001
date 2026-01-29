@@ -42,6 +42,37 @@ router.post('/login', catchAsync(async (req, res) => {
 }));
 
 /**
+ * POST /auth/platform-login
+ * Login as platform owner (separate from tenant users)
+ */
+router.post('/platform-login', catchAsync(async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        throw new AppError('Email and password are required', 400);
+    }
+
+    const result = await authService.platformOwnerLogin(email, password);
+
+    // Set refresh token in HTTP-only cookie
+    res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({
+        status: 'success',
+        data: {
+            user: result.user,
+            accessToken: result.accessToken,
+            expiresIn: result.expiresIn,
+        },
+    });
+}));
+
+/**
  * POST /auth/refresh
  * Refresh access token using refresh token
  */
