@@ -9,6 +9,9 @@ import authRouter from './src/routes/auth.js';
 import usersRouter from './src/routes/users.js';
 import academicRouter from './src/routes/academic.js';
 import studentsRouter from './src/routes/students.js';
+import attendanceRouter from './src/routes/attendance.js';
+import gradesRouter from './src/routes/grades.js';
+import materialsRouter from './src/routes/materials.js';
 import { NotFoundError } from './src/utils/AppError.js';
 
 dotenv.config();
@@ -61,6 +64,9 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/academic', academicRouter);
 app.use('/api/v1/students', studentsRouter);
+app.use('/api/v1/attendance', attendanceRouter);
+app.use('/api/v1/grades', gradesRouter);
+app.use('/api/v1/materials', materialsRouter);
 
 // =============================================================================
 // ERROR HANDLING
