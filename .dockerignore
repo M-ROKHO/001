@@ -1,0 +1,49 @@
+# =============================================================================
+# Docker Ignore
+# Exclude files from Docker build context
+# =============================================================================
+
+# Dependencies
+node_modules
+npm-debug.log
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.docker.example
+
+# Tests
+tests
+coverage
+*.test.js
+jest.config.js
+
+# Documentation
+*.md
+!README.md
+
+# Build artifacts
+dist
+build
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp
+temp
