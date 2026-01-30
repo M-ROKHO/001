@@ -3,6 +3,7 @@ import authService from '../services/authService.js';
 import catchAsync from '../utils/catchAsync.js';
 import AppError from '../utils/AppError.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { authLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -14,7 +15,7 @@ const router = Router();
  * POST /auth/login
  * Login with email and password
  */
-router.post('/login', catchAsync(async (req, res) => {
+router.post('/login', authLimiter, catchAsync(async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -45,7 +46,7 @@ router.post('/login', catchAsync(async (req, res) => {
  * POST /auth/platform-login
  * Login as platform owner (separate from tenant users)
  */
-router.post('/platform-login', catchAsync(async (req, res) => {
+router.post('/platform-login', authLimiter, catchAsync(async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {

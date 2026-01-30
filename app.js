@@ -15,6 +15,12 @@ import materialsRouter from './src/routes/materials.js';
 import paymentsRouter from './src/routes/payments.js';
 import ledgerRouter from './src/routes/ledger.js';
 import timetableRouter from './src/routes/timetable.js';
+import templatesRouter from './src/routes/templates.js';
+import documentsRouter from './src/routes/documents.js';
+import importRouter from './src/routes/import.js';
+import exportRouter from './src/routes/export.js';
+import auditRouter from './src/routes/audit.js';
+import platformRouter from './src/routes/platform.js';
 import { NotFoundError } from './src/utils/AppError.js';
 
 dotenv.config();
@@ -73,6 +79,12 @@ app.use('/api/v1/materials', materialsRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/ledger', ledgerRouter);
 app.use('/api/v1/timetable', timetableRouter);
+app.use('/api/v1/templates', templatesRouter);
+app.use('/api/v1/documents', documentsRouter);
+app.use('/api/v1/import', importRouter);
+app.use('/api/v1/export', exportRouter);
+app.use('/api/v1/audit', auditRouter);
+app.use('/api/v1/platform', platformRouter);
 
 // =============================================================================
 // ERROR HANDLING

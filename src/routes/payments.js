@@ -3,6 +3,7 @@ import paymentsService from '../services/paymentsService.js';
 import catchAsync from '../utils/catchAsync.js';
 import AppError from '../utils/AppError.js';
 import { protectedRoute, requirePermission, requireRole, hasPermission } from '../middleware/authorize.js';
+import { paymentLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -19,6 +20,7 @@ router.use(protectedRoute);
  * Accountant only
  */
 router.post('/invoices',
+    paymentLimiter,
     requireRole(['accountant']),
     requirePermission('invoice:create'),
     catchAsync(async (req, res) => {
@@ -138,6 +140,7 @@ router.post('/invoices/:id/cancel',
  * Accountant only
  */
 router.post('/',
+    paymentLimiter,
     requireRole(['accountant']),
     requirePermission('payment:create'),
     catchAsync(async (req, res) => {
