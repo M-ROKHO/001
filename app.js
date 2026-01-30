@@ -14,6 +14,7 @@ import gradesRouter from './src/routes/grades.js';
 import materialsRouter from './src/routes/materials.js';
 import paymentsRouter from './src/routes/payments.js';
 import ledgerRouter from './src/routes/ledger.js';
+import timetableRouter from './src/routes/timetable.js';
 import { NotFoundError } from './src/utils/AppError.js';
 
 dotenv.config();
@@ -71,6 +72,7 @@ app.use('/api/v1/grades', gradesRouter);
 app.use('/api/v1/materials', materialsRouter);
 app.use('/api/v1/payments', paymentsRouter);
 app.use('/api/v1/ledger', ledgerRouter);
+app.use('/api/v1/timetable', timetableRouter);
 
 // =============================================================================
 // ERROR HANDLING
