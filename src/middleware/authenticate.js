@@ -31,14 +31,25 @@ export const authenticate = async (req, res, next) => {
         // Verify token
         const decoded = verifyAccessToken(token);
 
-        // Check if platform owner
+        // Check if platform owner or platform admin
         if (decoded.isPlatformOwner) {
             req.user = {
                 userId: decoded.userId,
                 email: decoded.email,
                 isPlatformOwner: true,
+                isPlatformAdmin: false,
             };
             req.isPlatformOwner = true;
+            req.isPlatformAdmin = false;
+        } else if (decoded.isPlatformAdmin) {
+            req.user = {
+                userId: decoded.userId,
+                email: decoded.email,
+                isPlatformOwner: false,
+                isPlatformAdmin: true,
+            };
+            req.isPlatformOwner = false;
+            req.isPlatformAdmin = true;
         } else {
             // Regular tenant user
             req.user = {
@@ -46,8 +57,10 @@ export const authenticate = async (req, res, next) => {
                 tenantId: decoded.tenantId,
                 email: decoded.email,
                 isPlatformOwner: false,
+                isPlatformAdmin: false,
             };
             req.isPlatformOwner = false;
+            req.isPlatformAdmin = false;
         }
 
         next();

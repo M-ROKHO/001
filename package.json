@@ -9,8 +9,11 @@
   "scripts": {
     "start": "node app.js",
     "dev": "node --watch app.js",
-    "db:migrate": "node src/database/migrate.js up",
-    "db:rollback": "node src/database/migrate.js down",
+    "flyway:migrate": "node scripts/flyway-runner.js migrate",
+    "flyway:info": "node scripts/flyway-runner.js info",
+    "flyway:validate": "node scripts/flyway-runner.js validate",
+    "flyway:repair": "node scripts/flyway-runner.js repair",
+    "db:setup": "node scripts/setup-database.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",

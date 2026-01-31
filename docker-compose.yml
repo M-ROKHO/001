@@ -51,7 +51,7 @@ services:
     container_name: edusaas-postgres
     restart: unless-stopped
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-8000}:8000"
     environment:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}

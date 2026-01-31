@@ -101,6 +101,20 @@ export const loadRoleForTenant = async (req, res, next) => {
             return next();
         }
 
+        // Platform admin has access to all tenants but limited permissions
+        if (req.isPlatformAdmin) {
+            req.user.roles = ['platform_admin'];
+            // Admin can manage tenants but NOT platform owner
+            req.user.permissions = [
+                'tenant:read', 'tenant:create', 'tenant:update', 'tenant:suspend',
+                'principal:read', 'principal:create', 'principal:update',
+                'user:read', 'student:read', 'teacher:read',
+                'invoice:read', 'payment:read', 'attendance:read', 'grade:read',
+                'audit:read', 'stats:read'
+            ];
+            return next();
+        }
+
         // Must have both user and tenant
         if (!req.user?.userId) {
             return next(new AppError('Authentication required', 401));
@@ -234,6 +248,48 @@ export const platformOwnerOnly = (req, res, next) => {
         return next(new AppError('Platform owner access required', 403));
     }
     next();
+};
+
+/**
+ * Restrict to platform admin or higher (includes platform owner)
+ */
+export const platformAdminOrHigher = (req, res, next) => {
+    if (!req.isPlatformOwner && !req.isPlatformAdmin) {
+        return next(new AppError('Platform admin access required', 403));
+    }
+    next();
+};
+
+/**
+ * Check if target user is platform owner (for protection)
+ */
+export const cannotTargetOwner = (getTargetUserId) => {
+    return async (req, res, next) => {
+        // Platform owner can do anything
+        if (req.isPlatformOwner) {
+            return next();
+        }
+
+        const targetUserId = typeof getTargetUserId === 'function'
+            ? getTargetUserId(req)
+            : req.params[getTargetUserId || 'id'];
+
+        if (!targetUserId) {
+            return next();
+        }
+
+        // Check if target is platform owner
+        const result = await db.query(
+            `SELECT id, role FROM platform_users WHERE id = $1`,
+            [targetUserId]
+        );
+
+        if (result.rows.length > 0 && result.rows[0].role === 'platform_owner') {
+            return next(new AppError('Cannot modify platform owner', 403));
+        }
+
+        next();
+    };
 };
 
 // =============================================================================
