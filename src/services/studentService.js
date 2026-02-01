@@ -60,14 +60,49 @@ const generateStudentEmail = async (firstName, lastName, tenantId) => {
 
 const studentService = {
     /**
+     * Validate phone number format
+     */
+    validatePhoneNumber: (phone) => {
+        if (!phone) return true;
+        // Allow digits, spaces, dashes, parentheses, and plus sign
+        const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+        return phoneRegex.test(phone);
+    },
+
+    /**
      * Create a new student profile
      */
     create: async (tenantId, actorId, data) => {
         const {
-            firstName, lastName, email, phone, dateOfBirth, gender,
-            gradeId, classId, guardianName, guardianPhone, guardianEmail,
-            address, nationalId, notes
+            firstName, lastName, email, phone,
+            dateOfBirth, gender, admissionDate,
+            address, parentContact,
+            emergencyContactName, emergencyContactPhone,
+            medicalNotes, notes
         } = data;
+
+        // Validate mandatory fields
+        if (!firstName || !lastName) {
+            throw new AppError('First name and last name are required', 400);
+        }
+        if (!dateOfBirth) {
+            throw new AppError('Date of birth is required', 400);
+        }
+        if (!gender) {
+            throw new AppError('Gender is required', 400);
+        }
+        const validGenders = ['male', 'female', 'other', 'prefer_not_to_say'];
+        if (!validGenders.includes(gender)) {
+            throw new AppError(`Gender must be one of: ${validGenders.join(', ')}`, 400);
+        }
+
+        // Validate phone numbers format
+        if (parentContact && !studentService.validatePhoneNumber(parentContact)) {
+            throw new AppError('Parent contact must be a valid phone number', 400);
+        }
+        if (phone && !studentService.validatePhoneNumber(phone)) {
+            throw new AppError('Phone must be a valid phone number', 400);
+        }
 
         // Generate student ID and email
         const studentId = await generateStudentId(tenantId);
@@ -125,15 +160,17 @@ const studentService = {
             // Create student profile
             const studentResult = await client.query(
                 `INSERT INTO students (
-                    tenant_id, user_id, student_id, first_name, last_name, email, phone,
-                    date_of_birth, gender, grade_id, class_id, guardian_name, guardian_phone,
-                    guardian_email, address, national_id, notes, status, created_by
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'active', $18)
+                    tenant_id, user_id, student_number, first_name, last_name, email, phone,
+                    date_of_birth, gender, admission_date, address,
+                    parent_guardian_phone, emergency_contact_name, emergency_contact_phone,
+                    medical_notes, notes, status
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'active')
                 RETURNING *`,
                 [
                     tenantId, userId, studentId, firstName, lastName, studentEmail, phone,
-                    dateOfBirth, gender, gradeId, classId, guardianName, guardianPhone,
-                    guardianEmail, address, nationalId, notes, actorId
+                    dateOfBirth, gender, admissionDate || new Date().toISOString().split('T')[0],
+                    address, parentContact, emergencyContactName, emergencyContactPhone,
+                    medicalNotes, notes
                 ]
             );
 
@@ -164,13 +201,16 @@ const studentService = {
             student: {
                 id: result.id,
                 userId: result.user_id,
-                studentId: result.student_id,
+                studentNumber: result.student_number,
                 firstName: result.first_name,
                 lastName: result.last_name,
                 email: result.email,
                 phone: result.phone,
-                gradeId: result.grade_id,
-                classId: result.class_id,
+                dateOfBirth: result.date_of_birth,
+                gender: result.gender,
+                admissionDate: result.admission_date,
+                address: result.address,
+                parentContact: result.parent_guardian_phone,
                 status: result.status,
                 createdAt: result.created_at,
             },
@@ -185,32 +225,18 @@ const studentService = {
      */
     getAll: async (tenantId, actorId, options = {}) => {
         const {
-            page = 1, limit = 20, gradeId, classId, status, search,
+            page = 1, limit = 20, status, search, gender,
             orderBy = 'created_at', order = 'DESC'
         } = options;
 
         const offset = (page - 1) * limit;
         let query = `
-            SELECT s.*, g.name as grade_name, c.name as class_name
+            SELECT s.*
             FROM students s
-            LEFT JOIN grades g ON g.id = s.grade_id
-            LEFT JOIN classes c ON c.id = s.class_id
             WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
         `;
         const params = [tenantId];
         let paramIndex = 2;
-
-        if (gradeId) {
-            query += ` AND s.grade_id = $${paramIndex}`;
-            params.push(gradeId);
-            paramIndex++;
-        }
-
-        if (classId) {
-            query += ` AND s.class_id = $${paramIndex}`;
-            params.push(classId);
-            paramIndex++;
-        }
 
         if (status) {
             query += ` AND s.status = $${paramIndex}`;
@@ -218,8 +244,14 @@ const studentService = {
             paramIndex++;
         }
 
+        if (gender) {
+            query += ` AND s.gender = $${paramIndex}`;
+            params.push(gender);
+            paramIndex++;
+        }
+
         if (search) {
-            query += ` AND (s.first_name ILIKE $${paramIndex} OR s.last_name ILIKE $${paramIndex} OR s.student_id ILIKE $${paramIndex} OR s.email ILIKE $${paramIndex})`;
+            query += ` AND (s.first_name ILIKE $${paramIndex} OR s.last_name ILIKE $${paramIndex} OR s.student_number ILIKE $${paramIndex} OR s.email ILIKE $${paramIndex})`;
             params.push(`%${search}%`);
             paramIndex++;
         }
@@ -227,12 +259,12 @@ const studentService = {
         // Count query
         const countResult = await db.tenantQuery(
             tenantId, actorId,
-            query.replace('SELECT s.*, g.name as grade_name, c.name as class_name', 'SELECT COUNT(*) as total'),
+            query.replace('SELECT s.*', 'SELECT COUNT(*) as total'),
             params
         );
 
         // Add pagination
-        const validOrderBy = ['created_at', 'first_name', 'last_name', 'student_id', 'status'];
+        const validOrderBy = ['created_at', 'first_name', 'last_name', 'student_number', 'status', 'admission_date'];
         const col = validOrderBy.includes(orderBy) ? orderBy : 'created_at';
         const dir = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
@@ -244,15 +276,16 @@ const studentService = {
         return {
             students: result.rows.map(s => ({
                 id: s.id,
-                studentId: s.student_id,
+                studentNumber: s.student_number,
                 firstName: s.first_name,
                 lastName: s.last_name,
                 email: s.email,
                 phone: s.phone,
-                gradeId: s.grade_id,
-                gradeName: s.grade_name,
-                classId: s.class_id,
-                className: s.class_name,
+                dateOfBirth: s.date_of_birth,
+                gender: s.gender,
+                admissionDate: s.admission_date,
+                address: s.address,
+                parentContact: s.parent_guardian_phone,
                 status: s.status,
                 createdAt: s.created_at,
             })),
@@ -271,10 +304,8 @@ const studentService = {
     getById: async (tenantId, actorId, studentId) => {
         const result = await db.tenantQuery(
             tenantId, actorId,
-            `SELECT s.*, g.name as grade_name, c.name as class_name
+            `SELECT s.*
              FROM students s
-             LEFT JOIN grades g ON g.id = s.grade_id
-             LEFT JOIN classes c ON c.id = s.class_id
              WHERE s.id = $1 AND s.tenant_id = $2 AND s.deleted_at IS NULL`,
             [studentId, tenantId]
         );
@@ -287,22 +318,19 @@ const studentService = {
         return {
             id: s.id,
             userId: s.user_id,
-            studentId: s.student_id,
+            studentNumber: s.student_number,
             firstName: s.first_name,
             lastName: s.last_name,
             email: s.email,
             phone: s.phone,
             dateOfBirth: s.date_of_birth,
             gender: s.gender,
-            gradeId: s.grade_id,
-            gradeName: s.grade_name,
-            classId: s.class_id,
-            className: s.class_name,
-            guardianName: s.guardian_name,
-            guardianPhone: s.guardian_phone,
-            guardianEmail: s.guardian_email,
+            admissionDate: s.admission_date,
             address: s.address,
-            nationalId: s.national_id,
+            parentContact: s.parent_guardian_phone,
+            emergencyContactName: s.emergency_contact_name,
+            emergencyContactPhone: s.emergency_contact_phone,
+            medicalNotes: s.medical_notes,
             notes: s.notes,
             status: s.status,
             createdAt: s.created_at,
@@ -315,8 +343,25 @@ const studentService = {
     update: async (tenantId, actorId, studentId, data) => {
         const {
             firstName, lastName, phone, dateOfBirth, gender,
-            guardianName, guardianPhone, guardianEmail, address, nationalId, notes
+            address, parentContact, emergencyContactName, emergencyContactPhone,
+            medicalNotes, notes
         } = data;
+
+        // Validate gender if provided
+        if (gender) {
+            const validGenders = ['male', 'female', 'other', 'prefer_not_to_say'];
+            if (!validGenders.includes(gender)) {
+                throw new AppError(`Gender must be one of: ${validGenders.join(', ')}`, 400);
+            }
+        }
+
+        // Validate phone numbers format
+        if (parentContact && !studentService.validatePhoneNumber(parentContact)) {
+            throw new AppError('Parent contact must be a valid phone number', 400);
+        }
+        if (phone && !studentService.validatePhoneNumber(phone)) {
+            throw new AppError('Phone must be a valid phone number', 400);
+        }
 
         const result = await db.tenantQuery(
             tenantId, actorId,
@@ -326,23 +371,37 @@ const studentService = {
                 phone = COALESCE($3, phone),
                 date_of_birth = COALESCE($4, date_of_birth),
                 gender = COALESCE($5, gender),
-                guardian_name = COALESCE($6, guardian_name),
-                guardian_phone = COALESCE($7, guardian_phone),
-                guardian_email = COALESCE($8, guardian_email),
-                address = COALESCE($9, address),
-                national_id = COALESCE($10, national_id),
+                address = COALESCE($6, address),
+                parent_guardian_phone = COALESCE($7, parent_guardian_phone),
+                emergency_contact_name = COALESCE($8, emergency_contact_name),
+                emergency_contact_phone = COALESCE($9, emergency_contact_phone),
+                medical_notes = COALESCE($10, medical_notes),
                 notes = COALESCE($11, notes),
                 updated_at = NOW()
              WHERE id = $12 AND tenant_id = $13 AND deleted_at IS NULL
              RETURNING *`,
-            [firstName, lastName, phone, dateOfBirth, gender, guardianName, guardianPhone, guardianEmail, address, nationalId, notes, studentId, tenantId]
+            [firstName, lastName, phone, dateOfBirth, gender, address, parentContact, emergencyContactName, emergencyContactPhone, medicalNotes, notes, studentId, tenantId]
         );
 
         if (result.rows.length === 0) {
             throw new AppError('Student not found', 404);
         }
 
-        return result.rows[0];
+        const s = result.rows[0];
+        return {
+            id: s.id,
+            studentNumber: s.student_number,
+            firstName: s.first_name,
+            lastName: s.last_name,
+            email: s.email,
+            phone: s.phone,
+            dateOfBirth: s.date_of_birth,
+            gender: s.gender,
+            admissionDate: s.admission_date,
+            address: s.address,
+            parentContact: s.parent_guardian_phone,
+            status: s.status,
+        };
     },
 
     /**
