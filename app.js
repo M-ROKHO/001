@@ -21,6 +21,9 @@ import importRouter from './src/routes/import.js';
 import exportRouter from './src/routes/export.js';
 import auditRouter from './src/routes/audit.js';
 import platformRouter from './src/routes/platform.js';
+import schoolGradesRouter from './src/routes/schoolGrades.js';
+import subjectsRouter from './src/routes/subjects.js';
+import classesRouter from './src/routes/classes.js';
 import { NotFoundError } from './src/utils/AppError.js';
 
 dotenv.config();
@@ -85,6 +88,10 @@ app.use('/api/v1/import', importRouter);
 app.use('/api/v1/export', exportRouter);
 app.use('/api/v1/audit', auditRouter);
 app.use('/api/v1/platform', platformRouter);
+// Morocco Education System Routes
+app.use('/api/v1/school-grades', schoolGradesRouter);
+app.use('/api/v1/subjects', subjectsRouter);
+app.use('/api/v1/classes', classesRouter);
 
 // =============================================================================
 // ERROR HANDLING
