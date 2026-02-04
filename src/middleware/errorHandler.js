@@ -44,9 +44,17 @@ const handleDatabaseError = (err) => {
 };
 
 /**
- * Handle validation errors (e.g., from express-validator)
+ * Handle validation errors (Zod or express-validator)
  */
 const handleValidationError = (err) => {
+    // If we have detailed Zod errors
+    if (err.details && Array.isArray(err.details)) {
+        const error = new AppError('Validation failed', 400);
+        error.details = err.details;
+        error.code = 'VALIDATION_ERROR';
+        return error;
+    }
+    // Legacy express-validator format
     const errors = err.errors?.map(e => e.msg).join(', ');
     return new AppError(`Validation error: ${errors}`, 400);
 };
@@ -64,6 +72,8 @@ const sendErrorDev = (err, req, res) => {
     res.status(err.statusCode).json({
         status: err.status,
         message: err.message,
+        code: err.code,
+        ...(err.details && { details: err.details }),
         error: {
             name: err.name,
             code: err.code,
