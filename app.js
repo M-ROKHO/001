@@ -33,6 +33,7 @@ import schoolGradesRouter from './src/routes/schoolGrades.js';
 import subjectsRouter from './src/routes/subjects.js';
 import classesRouter from './src/routes/classes.js';
 import examsRouter from './src/routes/exams.js';
+import { initRedis, closeRedis, isRedisAvailable } from './src/config/redis.js';
 import { NotFoundError } from './src/utils/AppError.js';
 
 dotenv.config();
@@ -135,6 +136,13 @@ process.on('uncaughtException', (err) => {
 const gracefulShutdown = async (signal) => {
     logShutdown(signal);
 
+    // Close Redis connection
+    try {
+        await closeRedis();
+    } catch (err) {
+        logger.error({ err }, 'Error closing Redis');
+    }
+
     // Close database pool
     try {
         await pool.end();
@@ -156,6 +164,18 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 app.listen(PORT, async () => {
     logServerStart(PORT);
     logger.info({ env: process.env.NODE_ENV || 'development' }, 'Environment configured');
+
+    // Initialize Redis (optional - app runs without it)
+    try {
+        await initRedis();
+        if (isRedisAvailable()) {
+            logger.info('✅ Redis connection established');
+        } else {
+            logger.info('⚠️ Running without Redis (rate limiting uses in-memory store)');
+        }
+    } catch (err) {
+        logger.warn({ err }, 'Redis not available, using in-memory fallback');
+    }
 
     // Test database connection on startup
     const dbConnected = await testConnection();

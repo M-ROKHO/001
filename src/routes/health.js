@@ -1,4 +1,5 @@
 import db, { pool, testConnection } from '../config/database.js';
+import { redisHealthCheck, isRedisAvailable } from '../config/redis.js';
 
 /**
  * Health check response structure
@@ -78,7 +79,8 @@ export const detailedHealthCheck = async (req, res) => {
             },
             pid: process.pid
         },
-        database: { status: 'unknown' }
+        database: { status: 'unknown' },
+        redis: { status: 'unknown' }
     };
 
     let overallStatus = 'healthy';
@@ -108,6 +110,20 @@ export const detailedHealthCheck = async (req, res) => {
         checks.database = {
             status: 'down',
             error: error.message
+        };
+    }
+
+    // Redis check (non-critical - degraded status only)
+    try {
+        checks.redis = await redisHealthCheck();
+        // Redis being down is not critical (graceful degradation)
+        if (checks.redis.status === 'unhealthy') {
+            checks.redis.note = 'App runs without Redis (degraded performance)';
+        }
+    } catch (error) {
+        checks.redis = {
+            status: 'disabled',
+            message: 'Redis not configured'
         };
     }
 
