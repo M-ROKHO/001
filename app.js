@@ -4,6 +4,14 @@ import dotenv from 'dotenv';
 import db, { pool, testConnection } from './src/config/database.js';
 import errorHandler from './src/middleware/errorHandler.js';
 import requestLogger from './src/middleware/requestLogger.js';
+import logger, {
+    logServerStart,
+    logDbConnected,
+    logDbError,
+    logUnhandledRejection,
+    logUncaughtException,
+    logShutdown,
+} from './src/utils/logger.js';
 import healthRouter from './src/routes/health.js';
 import authRouter from './src/routes/auth.js';
 import usersRouter from './src/routes/users.js';
@@ -24,6 +32,7 @@ import platformRouter from './src/routes/platform.js';
 import schoolGradesRouter from './src/routes/schoolGrades.js';
 import subjectsRouter from './src/routes/subjects.js';
 import classesRouter from './src/routes/classes.js';
+import examsRouter from './src/routes/exams.js';
 import { NotFoundError } from './src/utils/AppError.js';
 
 dotenv.config();
@@ -92,6 +101,7 @@ app.use('/api/v1/platform', platformRouter);
 app.use('/api/v1/school-grades', schoolGradesRouter);
 app.use('/api/v1/subjects', subjectsRouter);
 app.use('/api/v1/classes', classesRouter);
+app.use('/api/v1/exams', examsRouter);
 
 // =============================================================================
 // ERROR HANDLING
@@ -110,31 +120,27 @@ app.use(errorHandler);
 // =============================================================================
 
 // Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-    console.error('UNHANDLED REJECTION! Shutting down...');
-    console.error(err.name, err.message);
-    console.error(err.stack);
+process.on('unhandledRejection', (reason, promise) => {
+    logUnhandledRejection(reason, promise);
     process.exit(1);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
-    console.error('UNCAUGHT EXCEPTION! Shutting down...');
-    console.error(err.name, err.message);
-    console.error(err.stack);
+    logUncaughtException(err);
     process.exit(1);
 });
 
 // Graceful shutdown
 const gracefulShutdown = async (signal) => {
-    console.log(`\n${signal} received. Shutting down gracefully...`);
+    logShutdown(signal);
 
     // Close database pool
     try {
         await pool.end();
-        console.log('✅ Database connections closed');
+        logger.info('Database connections closed');
     } catch (err) {
-        console.error('Error closing database:', err.message);
+        logger.error({ err }, 'Error closing database');
     }
 
     process.exit(0);
@@ -148,15 +154,15 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 // =============================================================================
 
 app.listen(PORT, async () => {
-    console.log(`\n🚀 Server running on port ${PORT}`);
-    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    logServerStart(PORT);
+    logger.info({ env: process.env.NODE_ENV || 'development' }, 'Environment configured');
 
     // Test database connection on startup
     const dbConnected = await testConnection();
     if (dbConnected) {
-        console.log('✅ Database connection established\n');
+        logDbConnected(process.env.DB_HOST, process.env.DB_NAME);
     } else {
-        console.error('❌ Database connection failed\n');
+        logDbError(new Error('Initial connection test failed'));
     }
 });
 
